@@ -19,6 +19,7 @@ class Mustache_Compiler
     private $pragmas;
     private $defaultPragmas = array();
     private $sections;
+    private $blocks;
     private $source;
     private $indentNextLine;
     private $customEscape;
@@ -43,6 +44,7 @@ class Mustache_Compiler
     {
         $this->pragmas         = $this->defaultPragmas;
         $this->sections        = array();
+        $this->blocks          = array();
         $this->source          = $source;
         $this->indentNextLine  = true;
         $this->customEscape    = $customEscape;
@@ -195,6 +197,7 @@ class Mustache_Compiler
                 return $buffer;
             }
         %s
+        %s
         }';
 
     const KLASS_NO_LAMBDAS = '<?php
@@ -225,18 +228,18 @@ class Mustache_Compiler
     {
         $code     = $this->walk($tree);
         $sections = implode("\n", $this->sections);
-        $klass    = empty($this->sections) ? self::KLASS_NO_LAMBDAS : self::KLASS;
+        $blocks   = implode("\n", $this->blocks);
+        $klass    = empty($this->sections) && empty($this->blocks) ? self::KLASS_NO_LAMBDAS : self::KLASS;
 
         $callable = $this->strictCallables ? $this->prepare(self::STRICT_CALLABLE) : '';
 
-        return sprintf($this->prepare($klass, 0, false, true), $name, $callable, $code, $sections);
+        return sprintf($this->prepare($klass, 0, false, true), $name, $callable, $code, $sections, $blocks);
     }
 
     const BLOCK_VAR = '
         $blockFunction = $context->findInBlock(%s);
         if (is_callable($blockFunction)) {
-            $boundFunction = $blockFunction->bindTo($this, $this);
-            $boundFunction($context, $buffer);
+            $buffer .= call_user_func($blockFunction, $context);
         } else {
             %s
         }
@@ -259,16 +262,41 @@ class Mustache_Compiler
     {
         $id = var_export($id, true);
 
-        return sprintf($this->prepare(self::BLOCK_VAR, $level), $id, $this->walk($nodes));
+        return sprintf($this->prepare(self::BLOCK_VAR, $level), $id, $this->walk($nodes, $level));
     }
 
     const BLOCK_ARG = '
         // %s block_arg
-        $blockFunction = function(& $context, & $buffer, $indent=\'\') {
-            %s
-        };
-        $newContext[%s] = $blockFunction;
+        $blockid = %s;
+        $newContext[%s] = array($this, \'block\' . $blockid);
     ';
+
+    const BLOCK_FUNCTION = 'public function block%s($context) {
+            $indent = $buffer = \'\';
+
+            %s
+
+            return $buffer;
+        }';
+
+    /**
+     * Generate Mustache Template inheritance block function PHP source.
+     *
+     * @param array  $nodes Array of child tokens
+     *
+     * @return string key of new block function
+     */
+    private function block($nodes)
+    {
+        $code = $this->walk($nodes, 1);
+
+        $key = ucfirst(md5($code));
+
+        if (!isset($this->blocks[$key])) {
+            $this->blocks[$key] = sprintf($this->prepare(self::BLOCK_FUNCTION, 1), $key, $code);
+        }
+        return $key;
+    }
 
     /**
      * Generate Mustache Template inheritance block argument PHP source.
@@ -285,10 +313,10 @@ class Mustache_Compiler
      */
     private function blockArg($nodes, $id, $start, $end, $otag, $ctag, $level)
     {
+        $key = var_export($this->block($nodes), true);
         $id = var_export($id, true);
-        $code = $this->walk($nodes, 1);
 
-        return sprintf($this->prepare(self::BLOCK_ARG, 1), $id, $code, $id);
+        return sprintf($this->prepare(self::BLOCK_ARG, 1), $key, $key, $id);
     }
 
     const SECTION_CALL = '
