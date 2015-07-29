@@ -23,6 +23,7 @@ class Mustache_Parser
 
     private $pragmaFilters;
     private $pragmaBlocks;
+    private $pragmaLambdaArgs;
 
     /**
      * Process an array of Mustache tokens and convert them into a parse tree.
@@ -39,6 +40,7 @@ class Mustache_Parser
 
         $this->pragmaFilters = isset($this->pragmas[Mustache_Engine::PRAGMA_FILTERS]);
         $this->pragmaBlocks  = isset($this->pragmas[Mustache_Engine::PRAGMA_BLOCKS]);
+        $this->pragmaLambdaArgs  = isset($this->pragmas[Mustache_Engine::PRAGMA_LAMBDA_ARGS]);
 
         return $this->buildTree($tokens);
     }
@@ -89,6 +91,13 @@ class Mustache_Parser
                 if (!empty($filters)) {
                     $token[Mustache_Tokenizer::NAME]    = $name;
                     $token[Mustache_Tokenizer::FILTERS] = $filters;
+                }
+            }
+            if ($this->pragmaLambdaArgs && isset($token[Mustache_Tokenizer::NAME])) {
+                list($name, $lambdaargs) = $this->getNameAndLambdaArgs($token[Mustache_Tokenizer::NAME]);
+                if (!empty($lambdaargs)) {
+                    $token[Mustache_Tokenizer::NAME]    = $name;
+                    $token[Mustache_Tokenizer::LAMBDA_ARGS] = $lambdaargs;
                 }
             }
 
@@ -296,6 +305,21 @@ class Mustache_Parser
     }
 
     /**
+     * Split a tag name into name and lambda args.
+     *
+     * @param string $name
+     *
+     * @return array [Tag name, Array of lambda args]
+     */
+    private function getNameAndLambdaArgs($name)
+    {
+        $lambdaargs = array_map('trim', explode(' ', $name));
+        $name    = array_shift($lambdaargs);
+
+        return array($name, $lambdaargs);
+    }
+
+    /**
      * Enable a pragma.
      *
      * @param string $name
@@ -311,6 +335,10 @@ class Mustache_Parser
 
             case Mustache_Engine::PRAGMA_FILTERS:
                 $this->pragmaFilters = true;
+                break;
+
+            case Mustache_Engine::PRAGMA_LAMBDA_ARGS:
+                $this->pragmaLambdaArgs = true;
                 break;
         }
     }

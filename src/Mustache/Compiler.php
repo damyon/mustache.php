@@ -97,6 +97,7 @@ class Mustache_Compiler
                         $node[Mustache_Tokenizer::NODES],
                         $node[Mustache_Tokenizer::NAME],
                         isset($node[Mustache_Tokenizer::FILTERS]) ? $node[Mustache_Tokenizer::FILTERS] : array(),
+                        isset($node[Mustache_Tokenizer::LAMBDA_ARGS]) ? $node[Mustache_Tokenizer::LAMBDA_ARGS] : array(),
                         $node[Mustache_Tokenizer::INDEX],
                         $node[Mustache_Tokenizer::END],
                         $node[Mustache_Tokenizer::OTAG],
@@ -164,6 +165,7 @@ class Mustache_Compiler
                     $code .= $this->variable(
                         $node[Mustache_Tokenizer::NAME],
                         isset($node[Mustache_Tokenizer::FILTERS]) ? $node[Mustache_Tokenizer::FILTERS] : array(),
+                        isset($node[Mustache_Tokenizer::LAMBDA_ARGS]) ? $node[Mustache_Tokenizer::LAMBDA_ARGS] : array(),
                         $node[Mustache_Tokenizer::TYPE] === Mustache_Tokenizer::T_ESCAPED,
                         $level
                     );
@@ -322,16 +324,17 @@ class Mustache_Compiler
     const SECTION_CALL = '
         // %s section
         $value = $context->%s(%s);%s
-        $buffer .= $this->section%s($context, $indent, $value);
+        %s
+        $buffer .= $this->section%s($context, $indent, $value, $lambdaargs);
     ';
 
     const SECTION = '
-        private function section%s(Mustache_Context $context, $indent, $value)
+        private function section%s(Mustache_Context $context, $indent, $value, $sectionargs)
         {
             $buffer = \'\';
             if (%s) {
                 $source = %s;
-                $result = call_user_func($value, $source, $this->lambdaHelper);
+                $result = call_user_func($value, $source, $this->lambdaHelper, $sectionargs);
                 if (strpos($result, \'{{\') === false) {
                     $buffer .= $result;
                 } else {
@@ -357,6 +360,7 @@ class Mustache_Compiler
      * @param array    $nodes   Array of child tokens
      * @param string   $id      Section name
      * @param string[] $filters Array of filters
+     * @param string[] $lambdaargs Array of lambdaargs
      * @param int      $start   Section start offset
      * @param int      $end     Section end offset
      * @param string   $otag    Current Mustache opening tag
@@ -366,7 +370,7 @@ class Mustache_Compiler
      *
      * @return string Generated section PHP source code
      */
-    private function section($nodes, $id, $filters, $start, $end, $otag, $ctag, $level, $arg = false)
+    private function section($nodes, $id, $filters, $lambdaargs, $start, $end, $otag, $ctag, $level, $arg = false)
     {
         $source   = var_export(substr($this->source, $start, $end - $start), true);
         $callable = $this->getCallable();
@@ -387,10 +391,11 @@ class Mustache_Compiler
             return $key;
         } else {
             $method  = $this->getFindMethod($id);
-            $id      = var_export($id, true);
+            $id = var_export($id, true);
             $filters = $this->getFilters($filters, $level);
+            $lambdaargs = $this->getLambdaArgs($lambdaargs, $level);
 
-            return sprintf($this->prepare(self::SECTION_CALL, $level), $id, $method, $id, $filters, $key);
+            return sprintf($this->prepare(self::SECTION_CALL, $level), $id, $method, $id, $filters, $lambdaargs, $key);
         }
     }
 
@@ -496,7 +501,8 @@ class Mustache_Compiler
     }
 
     const VARIABLE = '
-        $value = $this->resolveValue($context->%s(%s), $context, $indent);%s
+        %s
+        $value = $this->resolveValue($context->%s(%s), $context, $indent, $lambdaargs);%s
         $buffer .= %s%s;
     ';
 
@@ -505,19 +511,22 @@ class Mustache_Compiler
      *
      * @param string   $id      Variable name
      * @param string[] $filters Array of filters
+     * @param string[] $lambdaargs Array of lambda args
      * @param bool     $escape  Escape the variable value for output?
      * @param int      $level
      *
      * @return string Generated variable interpolation PHP source
      */
-    private function variable($id, $filters, $escape, $level)
+    private function variable($id, $filters, $lambdaargs, $escape, $level)
     {
         $method  = $this->getFindMethod($id);
         $id      = ($method !== 'last') ? var_export($id, true) : '';
+        $idnoargs = strtok($id, ' ');
         $filters = $this->getFilters($filters, $level);
+        $lambdaargs = $this->getLambdaArgs($lambdaargs, $level);
         $value   = $escape ? $this->getEscape() : '$value';
 
-        return sprintf($this->prepare(self::VARIABLE, $level), $method, $id, $filters, $this->flushIndent(), $value);
+        return sprintf($this->prepare(self::VARIABLE, $level), $lambdaargs, $method, $id, $filters, $this->flushIndent(), $value);
     }
 
     const FILTER = '
@@ -549,6 +558,47 @@ class Mustache_Compiler
         $msg      = var_export($name, true);
 
         return sprintf($this->prepare(self::FILTER, $level), $method, $filter, $callable, $msg, $this->getFilters($filters, $level));
+    }
+
+    const LAMBDA_ARG_INIT = '
+        $lambdaargs = array();
+    ';
+    const LAMBDA_STR_ARG = '
+        array_push($lambdaargs, %s);
+    ';
+
+    const LAMBDA_VAR_ARG = '
+        array_push($lambdaargs, $context->%s(%s));
+    ';
+
+    /**
+     * Generate Mustache Template variable lambda arguments PHP source.
+     *
+     * @param string[] $lambdaargs Array of lambda args
+     * @param int      $level
+     *
+     * @return string Generated lambda arg PHP source
+     */
+    private function getLambdaArgs(array $lambdaargs, $level)
+    {
+        $result = sprintf($this->prepare(self::LAMBDA_ARG_INIT, $level));
+        if (empty($lambdaargs)) {
+            return $result;
+        }
+        foreach ($lambdaargs as $arg) {
+            $matches = array();
+            if (preg_match('/^"(.*)"$/', $arg, $matches)) {
+                $arg = var_export($matches[1], true);
+                $result .= sprintf($this->prepare(self::LAMBDA_STR_ARG, $level), $arg);
+            } else {
+                $method = $this->getFindMethod($arg);
+                $arg = var_export($arg, true);
+                $result .= sprintf($this->prepare(self::LAMBDA_VAR_ARG, $level), $method, $arg);
+            }
+        }
+
+
+        return $result;
     }
 
     const LINE = '$buffer .= "\n";';
