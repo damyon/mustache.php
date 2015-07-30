@@ -206,8 +206,11 @@ class Mustache_Compiler
 
         class %s extends Mustache_Template
         {%s
+            private $lambdaHelper;
+
             public function renderInternal(Mustache_Context $context, $indent = \'\')
             {
+                $this->lambdaHelper = new Mustache_LambdaHelper($this->mustache, $context);
                 $buffer = \'\';
                 $newContext = array();
         %s
@@ -325,16 +328,16 @@ class Mustache_Compiler
         // %s section
         $value = $context->%s(%s);%s
         %s
-        $buffer .= $this->section%s($context, $indent, $value, $lambdaargs);
+        $buffer .= $this->section%s($context, $indent, $value);
     ';
 
     const SECTION = '
-        private function section%s(Mustache_Context $context, $indent, $value, $sectionargs)
+        private function section%s(Mustache_Context $context, $indent, $value)
         {
             $buffer = \'\';
             if (%s) {
                 $source = %s;
-                $result = call_user_func($value, $source, $this->lambdaHelper, $sectionargs);
+                $result = call_user_func($value, $source, $this->lambdaHelper);
                 if (strpos($result, \'{{\') === false) {
                     $buffer .= $result;
                 } else {
@@ -502,7 +505,7 @@ class Mustache_Compiler
 
     const VARIABLE = '
         %s
-        $value = $this->resolveValue($context->%s(%s), $context, $indent, $lambdaargs);%s
+        $value = $this->resolveValue($context->%s(%s), $context, $indent, $this->lambdaHelper);%s
         $buffer .= %s%s;
     ';
 
@@ -563,6 +566,9 @@ class Mustache_Compiler
     const LAMBDA_ARG_INIT = '
         $lambdaargs = array();
     ';
+    const LAMBDA_ARG_FINAL = '
+        $this->lambdaHelper->setArguments($lambdaargs);
+    ';
     const LAMBDA_STR_ARG = '
         array_push($lambdaargs, %s);
     ';
@@ -583,6 +589,7 @@ class Mustache_Compiler
     {
         $result = sprintf($this->prepare(self::LAMBDA_ARG_INIT, $level));
         if (empty($lambdaargs)) {
+            $result .= sprintf($this->prepare(self::LAMBDA_ARG_FINAL, $level));
             return $result;
         }
         foreach ($lambdaargs as $arg) {
@@ -592,7 +599,7 @@ class Mustache_Compiler
                 $arg = var_export($matches[1], true);
                 $result .= sprintf($this->prepare(self::LAMBDA_STR_ARG, $level), $arg);
             // Literal Numbers
-            } else if (preg_match('/^\d*\.?\d*$/', $arg, $matches)) {
+            } else if (preg_match('/^\d+\.?\d*$/', $arg, $matches)) {
                 $arg = var_export($arg, true);
                 $result .= sprintf($this->prepare(self::LAMBDA_STR_ARG, $level), $arg);
             // Literal Booleans
@@ -610,7 +617,7 @@ class Mustache_Compiler
             }
         }
 
-
+        $result .= sprintf($this->prepare(self::LAMBDA_ARG_FINAL, $level));
         return $result;
     }
 

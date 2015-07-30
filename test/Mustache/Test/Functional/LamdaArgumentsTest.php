@@ -15,7 +15,8 @@ class Mustache_Test_Functional_LamdaArgumentTest extends PHPUnit_Framework_TestC
         ));
     }
 
-    public function orHelper($text, $helper, $args) {
+    public function orHelper($text, $helper) {
+        $args = $helper->getArguments();
         foreach ($args as $arg) {
             if (!empty($arg)) {
                 return $helper->render($text);
@@ -24,8 +25,13 @@ class Mustache_Test_Functional_LamdaArgumentTest extends PHPUnit_Framework_TestC
         return '';
     }
 
-    public function boldHelper($text, $helper=false, $args=false) {
-        return '<b>' . implode($text, '') . '</b>';
+    public function boldHelper($text, $helper, $args=false) {
+        $args = $helper->getArguments();
+        if (!empty($text)) {
+            return '<b>' . $helper->render($text) . '</b>';
+        } else {
+            return '<b>' . implode($args, '') . '</b>';
+        }
     }
 
     public function testLamdaFunctionsWithArgs()

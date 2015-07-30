@@ -55,7 +55,7 @@ class Mustache_Test_CompilerTest extends PHPUnit_Framework_TestCase
                 'ISO-8859-1',
                 array(
                     "\nclass Monkey extends Mustache_Template",
-                    '$value = $this->resolveValue($context->find(\'name\'), $context, $indent, $lambdaargs);',
+                    '$value = $this->resolveValue($context->find(\'name\'), $context, $indent, $this->lambdaHelper);',
                     '$buffer .= $indent . call_user_func($this->mustache->getEscape(), $value);',
                     'return $buffer;',
                 ),
@@ -75,7 +75,7 @@ class Mustache_Test_CompilerTest extends PHPUnit_Framework_TestCase
                 'ISO-8859-1',
                 array(
                     "\nclass Monkey extends Mustache_Template",
-                    '$value = $this->resolveValue($context->find(\'name\'), $context, $indent, $lambdaargs);',
+                    '$value = $this->resolveValue($context->find(\'name\'), $context, $indent, $this->lambdaHelper);',
                     '$buffer .= $indent . htmlspecialchars($value, ' . ENT_COMPAT . ', \'ISO-8859-1\');',
                     'return $buffer;',
                 ),
@@ -95,7 +95,7 @@ class Mustache_Test_CompilerTest extends PHPUnit_Framework_TestCase
                 'ISO-8859-1',
                 array(
                     "\nclass Monkey extends Mustache_Template",
-                    '$value = $this->resolveValue($context->find(\'name\'), $context, $indent, $lambdaargs);',
+                    '$value = $this->resolveValue($context->find(\'name\'), $context, $indent, $this->lambdaHelper);',
                     '$buffer .= $indent . htmlspecialchars($value, ' . ENT_QUOTES . ', \'ISO-8859-1\');',
                     'return $buffer;',
                 ),
@@ -122,9 +122,9 @@ class Mustache_Test_CompilerTest extends PHPUnit_Framework_TestCase
                 array(
                     "\nclass Monkey extends Mustache_Template",
                     "\$buffer .= \$indent . 'foo\n';",
-                    '$value = $this->resolveValue($context->find(\'name\'), $context, $indent, $lambdaargs);',
+                    '$value = $this->resolveValue($context->find(\'name\'), $context, $indent, $this->lambdaHelper);',
                     '$buffer .= htmlspecialchars($value, ' . ENT_COMPAT . ', \'UTF-8\');',
-                    '$value = $this->resolveValue($context->last(), $context, $indent, $lambdaargs);',
+                    '$value = $this->resolveValue($context->last(), $context, $indent, $this->lambdaHelper);',
                     '$buffer .= \'\\\'bar\\\'\';',
                     'return $buffer;',
                 ),
