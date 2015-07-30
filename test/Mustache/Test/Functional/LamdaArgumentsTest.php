@@ -65,4 +65,43 @@ class Mustache_Test_Functional_LamdaArgumentTest extends PHPUnit_Framework_TestC
         $this->assertEquals('Start of template <b>some text</b> end of template', $tpl->render($data));
 
     }
+
+    public function testLamdaFunctionsWithStr()
+    {
+        $this->mustache->addHelper('bold', array($this, 'boldHelper'));
+
+        $data = array('b' => 'some text');
+
+        $tpl = $this->mustache->loadTemplate(
+            'Start of template {{{bold "some  other \" text"}}} end of template'
+        );
+        $this->assertEquals('Start of template <b>some  other \" text</b> end of template', $tpl->render($data));
+
+    }
+
+    public function testLamdaFunctionsWithNumbers()
+    {
+        $this->mustache->addHelper('bold', array($this, 'boldHelper'));
+
+        $data = array('b' => 'some text');
+
+        $tpl = $this->mustache->loadTemplate(
+            'Start of template {{{bold 5.5}}} end of template'
+        );
+        $this->assertEquals('Start of template <b>5.5</b> end of template', $tpl->render($data));
+
+    }
+
+    public function testLamdaFunctionsWithBooleans()
+    {
+        $this->mustache->addHelper('bold', array($this, 'boldHelper'));
+
+        $data = array('b' => 'some text');
+
+        $tpl = $this->mustache->loadTemplate(
+            'Start of template {{{bold true}}} end of template'
+        );
+        $this->assertEquals('Start of template <b>1</b> end of template', $tpl->render($data));
+
+    }
 }

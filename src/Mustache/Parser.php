@@ -313,10 +313,34 @@ class Mustache_Parser
      */
     private function getNameAndLambdaArgs($name)
     {
-        $lambdaargs = array_map('trim', explode(' ', $name));
+        $lambdaargs = explode(' ', $name);
         $name    = array_shift($lambdaargs);
 
-        return array($name, $lambdaargs);
+        // Join tokens that were part of a quoted string.
+        $cleanargs = array();
+        $varbuffer = '';
+        $instring = false;
+        foreach ($lambdaargs as $arg) {
+            if (!$instring) {
+                if (preg_match('/^".*/', $arg)) {
+                    $varbuffer .= $arg;
+                    $instring = true;
+                } else if (preg_match('/[^\s]+/', $arg)) {
+                    $cleanargs[] = trim($arg);
+                }
+            } else {
+                $balanceslashes = str_replace('\\\\', '', $arg);
+                if (preg_match('/(^"$|[^\\\\]+"$)/', $balanceslashes)) {
+                    $cleanargs[] = $varbuffer . ' ' . $arg;
+                    $varbuffer = '';
+                    $instring = false;
+                } else {
+                    $varbuffer .= ' ' . $arg;
+                }
+            }
+        }
+
+        return array($name, $cleanargs);
     }
 
     /**

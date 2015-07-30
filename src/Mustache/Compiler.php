@@ -587,9 +587,22 @@ class Mustache_Compiler
         }
         foreach ($lambdaargs as $arg) {
             $matches = array();
+            // Literal strings
             if (preg_match('/^"(.*)"$/', $arg, $matches)) {
                 $arg = var_export($matches[1], true);
                 $result .= sprintf($this->prepare(self::LAMBDA_STR_ARG, $level), $arg);
+            // Literal Numbers
+            } else if (preg_match('/^\d*\.?\d*$/', $arg, $matches)) {
+                $arg = var_export($arg, true);
+                $result .= sprintf($this->prepare(self::LAMBDA_STR_ARG, $level), $arg);
+            // Literal Booleans
+            } else if (preg_match('/^true$/', $arg, $matches)) {
+                $arg = var_export(true, true);
+                $result .= sprintf($this->prepare(self::LAMBDA_STR_ARG, $level), $arg);
+            } else if (preg_match('/^false$/', $arg, $matches)) {
+                $arg = var_export(false, true);
+                $result .= sprintf($this->prepare(self::LAMBDA_STR_ARG, $level), $arg);
+            // Variable lookup
             } else {
                 $method = $this->getFindMethod($arg);
                 $arg = var_export($arg, true);
